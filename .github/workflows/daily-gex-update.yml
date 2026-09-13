@@ -1,0 +1,79 @@
+name: Daily SPY Gamma Exposure Update
+
+# Refreshes gex_data.json + appends to history.json every trading weekday
+# after the US market close, then publishes site/ to GitHub Pages.
+
+on:
+  schedule:
+    # 20:45 UTC = 4:45pm ET while US is on daylight time (EDT, UTC-4).
+    # During standard time (EST, UTC-5, roughly Nov-Mar) this fires at
+    # 3:45pm ET instead — bump to "45 21 * * 1-5" in the winter if you
+    # want it to stay pinned to 4:45pm ET year-round.
+    - cron: "45 20 * * 1-5"
+  workflow_dispatch: {} # lets you trigger a manual run from the Actions tab
+
+concurrency:
+  group: gex-update
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    outputs:
+      updated: ${{ steps.commit.outputs.updated }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run gamma exposure computation
+        run: python3 scripts/compute_gex.py
+
+      - name: Commit updated data files
+        id: commit
+        run: |
+          git config user.name "gex-bot"
+          git config user.email "gex-bot@users.noreply.github.com"
+          git add site/data/gex_data.json site/data/history.json
+          if git diff --cached --quiet; then
+            echo "No data changes (market likely closed) — skipping commit."
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "Daily GEX update: $(date -u +'%Y-%m-%d')"
+            git push
+            echo "updated=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy-pages:
+    needs: update-data
+    if: needs.update-data.outputs.updated == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout repo (latest commit)
+        uses: actions/checkout@v4
+
+      - name: Upload site as Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
