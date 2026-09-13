@@ -1,14 +1,23 @@
 """
-SPY Gamma Exposure computation pipeline.
+Multi-ticker Gamma Exposure computation pipeline (SPY + QQQ).
 
-Fetches the live SPY options chain (which, on non-trading days, reflects the
-most recent trading session's closing open interest), computes Black-Scholes
-dealer gamma exposure per strike, derives the call wall / put wall / max pain /
-gamma flip point, and writes:
-  - site/data/gex_data.json   (current full snapshot used by the main charts)
-  - site/data/history.json    (append-only daily tracker log)
+Fetches the live options chain for a given ticker (which, on non-trading
+days, reflects the most recent trading session's closing open interest),
+computes Black-Scholes dealer gamma exposure per strike, derives the call
+wall / put wall / max pain / gamma flip point, and writes:
+  - site/data/gex_data.json        (SPY snapshot — unchanged filename for
+                                     backward compatibility with the
+                                     existing SPY page)
+  - site/data/history.json         (SPY append-only daily tracker log)
+  - site/data/gex_data_QQQ.json    (QQQ snapshot)
+  - site/data/history_QQQ.json     (QQQ append-only daily tracker log)
 
-Run this once per trading day (after close) to refresh the dashboard.
+Ticker is selected via the TICKER env var (defaults to SPY). SPY keeps its
+original fixed $700-850 strike window so existing history stays comparable;
+any other ticker (e.g. QQQ) gets an auto-sized window of spot +/-25%.
+
+Run this once per trading day (after close), once per ticker, to refresh
+the dashboards.
 """
 import json
 import os
@@ -20,17 +29,40 @@ import pandas as pd
 import yfinance as yf
 from scipy.stats import norm
 
-STRIKE_LOW = 700
-STRIKE_HIGH = 850
 CONTRACT_SIZE = 100
 RISK_FREE_RATE_FALLBACK = 0.039  # used only if the live ^IRX fetch below fails
+
+# Tickers with a fixed, hand-picked strike window keep that exact window
+# forever, so their history stays comparable day over day. Any ticker not
+# listed here gets an automatic +/-25%-of-spot window instead.
+FIXED_STRIKE_RANGES = {
+    "SPY": (700, 850),
+}
+
+TICKER = os.environ.get("TICKER", "SPY").strip().upper() or "SPY"
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SITE_DATA_DIR = os.path.join(BASE_DIR, "site", "data")
 os.makedirs(SITE_DATA_DIR, exist_ok=True)
 
-GEX_JSON_PATH = os.path.join(SITE_DATA_DIR, "gex_data.json")
-HISTORY_JSON_PATH = os.path.join(SITE_DATA_DIR, "history.json")
+
+def _data_filenames(ticker):
+    """SPY keeps the original unsuffixed filenames; every other ticker gets
+    a _{TICKER} suffix so it never collides with the SPY files."""
+    if ticker == "SPY":
+        return "gex_data.json", "history.json"
+    return f"gex_data_{ticker}.json", f"history_{ticker}.json"
+
+
+_gex_name, _history_name = _data_filenames(TICKER)
+GEX_JSON_PATH = os.path.join(SITE_DATA_DIR, _gex_name)
+HISTORY_JSON_PATH = os.path.join(SITE_DATA_DIR, _history_name)
+
+
+def get_strike_range(ticker, spot):
+    if ticker in FIXED_STRIKE_RANGES:
+        return FIXED_STRIKE_RANGES[ticker]
+    return spot * 0.75, spot * 1.25
 
 
 def bs_gamma(S, K, T, r, sigma):
@@ -40,11 +72,11 @@ def bs_gamma(S, K, T, r, sigma):
     return norm.pdf(d1) / (S * sigma * np.sqrt(T))
 
 
-def get_spot_and_asof():
-    t = yf.Ticker("SPY")
+def get_spot_and_asof(ticker):
+    t = yf.Ticker(ticker)
     hist = t.history(period="5d")
     if hist.empty:
-        raise RuntimeError("Could not fetch SPY price history")
+        raise RuntimeError(f"Could not fetch price history for '{ticker}' — check that the symbol is correct.")
     last_row = hist.iloc[-1]
     as_of_date = hist.index[-1].strftime("%Y-%m-%d")
     spot = float(last_row["Close"])
@@ -75,7 +107,7 @@ def get_risk_free_rate(fallback=RISK_FREE_RATE_FALLBACK):
         return fallback, "fallback"
 
 
-def fetch_chain(t, as_of_date, max_days_out=100):
+def fetch_chain(t, as_of_date, strike_low, strike_high, max_days_out=100):
     as_of_dt = datetime.strptime(as_of_date, "%Y-%m-%d")
     cutoff = (as_of_dt + timedelta(days=max_days_out)).strftime("%Y-%m-%d")
     expirations = [e for e in t.options if e <= cutoff]
@@ -98,13 +130,13 @@ def fetch_chain(t, as_of_date, max_days_out=100):
             d["T"] = T
             rows.append(d[["strike", "openInterest", "impliedVolatility", "volume", "type", "expiration", "dte", "T"]])
     full = pd.concat(rows, ignore_index=True)
-    full = full[(full["strike"] >= STRIKE_LOW) & (full["strike"] <= STRIKE_HIGH)]
+    full = full[(full["strike"] >= strike_low) & (full["strike"] <= strike_high)]
     full["openInterest"] = full["openInterest"].fillna(0)
     full["impliedVolatility"] = full["impliedVolatility"].fillna(0.0)
     return full
 
 
-def compute_metrics(df, spot, risk_free_rate):
+def compute_metrics(df, spot, risk_free_rate, strike_low, strike_high):
     df = df.copy()
     df["gamma"] = bs_gamma(spot, df["strike"].values, df["T"].values, risk_free_rate, df["impliedVolatility"].values)
     df["gex"] = np.where(
@@ -145,7 +177,7 @@ def compute_metrics(df, spot, risk_free_rate):
     max_pain = float(strikes[int(np.argmin(pains))])
 
     # Gamma flip curve: total dealer GEX as function of hypothetical spot
-    hyp_spots = np.arange(STRIKE_LOW, STRIKE_HIGH + 1, 1.0)
+    hyp_spots = np.linspace(strike_low, strike_high, 150)
     flip_vals = []
     for S in hyp_spots:
         g = bs_gamma(S, df["strike"].values, df["T"].values, risk_free_rate, df["impliedVolatility"].values)
@@ -178,62 +210,3 @@ def compute_metrics(df, spot, risk_free_rate):
         "regime": regime,
         "flip_curve": {"spot": hyp_spots.tolist(), "total_gex": flip_vals},
         "total_net_gex": net_gex_now,
-        "expirations_used": sorted(df["expiration"].unique().tolist()),
-    }
-
-
-def main():
-    spot, as_of_date, t = get_spot_and_asof()
-    risk_free_rate, rate_source = get_risk_free_rate()
-    df = fetch_chain(t, as_of_date)
-    metrics = compute_metrics(df, spot, risk_free_rate)
-
-    snapshot = {
-        "generated_at_utc": datetime.utcnow().isoformat() + "Z",
-        "as_of_date": as_of_date,
-        "spot": spot,
-        "strike_range": [STRIKE_LOW, STRIKE_HIGH],
-        "risk_free_rate": risk_free_rate,
-        "risk_free_rate_source": rate_source,
-        "call_wall": metrics["call_wall"],
-        "put_wall": metrics["put_wall"],
-        "max_pain": metrics["max_pain"],
-        "gamma_flip": metrics["gamma_flip"],
-        "regime": metrics["regime"],
-        "total_net_gex": metrics["total_net_gex"],
-        "expirations_used": metrics["expirations_used"],
-        "by_strike": metrics["by_strike"].to_dict(orient="records"),
-        "flip_curve": metrics["flip_curve"],
-    }
-
-    with open(GEX_JSON_PATH, "w") as f:
-        json.dump(snapshot, f, indent=2)
-
-    # Append/update history
-    history = []
-    if os.path.exists(HISTORY_JSON_PATH):
-        with open(HISTORY_JSON_PATH) as f:
-            history = json.load(f)
-
-    entry = {
-        "date": as_of_date,
-        "spot": spot,
-        "call_wall": metrics["call_wall"],
-        "put_wall": metrics["put_wall"],
-        "max_pain": metrics["max_pain"],
-        "gamma_flip": metrics["gamma_flip"],
-        "regime": metrics["regime"],
-        "total_net_gex": metrics["total_net_gex"],
-    }
-    history = [h for h in history if h["date"] != as_of_date]
-    history.append(entry)
-    history.sort(key=lambda h: h["date"])
-
-    with open(HISTORY_JSON_PATH, "w") as f:
-        json.dump(history, f, indent=2)
-
-    print(json.dumps(entry, indent=2))
-
-
-if __name__ == "__main__":
-    main()
