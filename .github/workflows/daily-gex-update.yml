@@ -1,7 +1,8 @@
-name: Daily SPY Gamma Exposure Update
+name: Daily SPY + QQQ Gamma Exposure Update
 
-# Refreshes gex_data.json + appends to history.json every trading weekday
-# after the US market close, then publishes site/ to GitHub Pages.
+# Refreshes gex_data.json/history.json (SPY) and gex_data_QQQ.json/history_QQQ.json
+# (QQQ) every trading weekday after the US market close, then publishes site/ to
+# GitHub Pages.
 
 on:
   schedule:
@@ -40,7 +41,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run gamma exposure computation
+      - name: Run gamma exposure computation (SPY)
+        env:
+          TICKER: SPY
+        run: python3 scripts/compute_gex.py
+
+      - name: Run gamma exposure computation (QQQ)
+        env:
+          TICKER: QQQ
         run: python3 scripts/compute_gex.py
 
       - name: Commit updated data files
@@ -48,7 +56,7 @@ jobs:
         run: |
           git config user.name "gex-bot"
           git config user.email "gex-bot@users.noreply.github.com"
-          git add site/data/gex_data.json site/data/history.json
+          git add site/data/gex_data.json site/data/history.json site/data/gex_data_QQQ.json site/data/history_QQQ.json
           if git diff --cached --quiet; then
             echo "No data changes (market likely closed) — skipping commit."
             echo "updated=false" >> "$GITHUB_OUTPUT"
@@ -68,6 +76,8 @@ jobs:
     steps:
       - name: Checkout repo (latest commit)
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Upload site as Pages artifact
         uses: actions/upload-pages-artifact@v3
