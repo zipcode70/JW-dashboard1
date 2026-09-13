@@ -23,7 +23,7 @@ from scipy.stats import norm
 STRIKE_LOW = 700
 STRIKE_HIGH = 850
 CONTRACT_SIZE = 100
-RISK_FREE_RATE = 0.039  # proxy from ^IRX 13-week T-bill
+RISK_FREE_RATE_FALLBACK = 0.039  # used only if the live ^IRX fetch below fails
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SITE_DATA_DIR = os.path.join(BASE_DIR, "site", "data")
@@ -49,6 +49,30 @@ def get_spot_and_asof():
     as_of_date = hist.index[-1].strftime("%Y-%m-%d")
     spot = float(last_row["Close"])
     return spot, as_of_date, t
+
+
+def get_risk_free_rate(fallback=RISK_FREE_RATE_FALLBACK):
+    """Live 13-week T-bill yield (^IRX) as a decimal, e.g. 0.039 for 3.9%.
+
+    ^IRX is quoted in percentage points (e.g. 3.90), so we divide by 100.
+    Falls back to the hardcoded constant if the fetch fails or returns
+    something implausible, so a Yahoo Finance hiccup never breaks the
+    whole daily run over a value that barely moves the gamma calculation
+    anyway.
+    """
+    try:
+        hist = yf.Ticker("^IRX").history(period="5d")
+        if hist.empty:
+            raise RuntimeError("empty ^IRX history")
+        rate = float(hist.iloc[-1]["Close"]) / 100.0
+        if not (0.0 < rate < 0.20):
+            # Sanity check: T-bill yields don't realistically sit outside
+            # roughly 0-20%. Treat anything outside that as a bad fetch.
+            raise RuntimeError(f"implausible ^IRX rate: {rate}")
+        return rate, "live"
+    except Exception as ex:
+        print(f"risk-free rate fetch failed ({ex}); using fallback {fallback}", file=sys.stderr)
+        return fallback, "fallback"
 
 
 def fetch_chain(t, as_of_date, max_days_out=100):
@@ -80,9 +104,9 @@ def fetch_chain(t, as_of_date, max_days_out=100):
     return full
 
 
-def compute_metrics(df, spot):
+def compute_metrics(df, spot, risk_free_rate):
     df = df.copy()
-    df["gamma"] = bs_gamma(spot, df["strike"].values, df["T"].values, RISK_FREE_RATE, df["impliedVolatility"].values)
+    df["gamma"] = bs_gamma(spot, df["strike"].values, df["T"].values, risk_free_rate, df["impliedVolatility"].values)
     df["gex"] = np.where(
         df["type"] == "call",
         df["gamma"] * df["openInterest"] * CONTRACT_SIZE * spot * spot * 0.01,
@@ -124,7 +148,7 @@ def compute_metrics(df, spot):
     hyp_spots = np.arange(STRIKE_LOW, STRIKE_HIGH + 1, 1.0)
     flip_vals = []
     for S in hyp_spots:
-        g = bs_gamma(S, df["strike"].values, df["T"].values, RISK_FREE_RATE, df["impliedVolatility"].values)
+        g = bs_gamma(S, df["strike"].values, df["T"].values, risk_free_rate, df["impliedVolatility"].values)
         sign = np.where(df["type"].values == "call", 1, -1)
         gex = sign * g * df["openInterest"].values * CONTRACT_SIZE * S * S * 0.01
         flip_vals.append(float(gex.sum()))
@@ -160,14 +184,17 @@ def compute_metrics(df, spot):
 
 def main():
     spot, as_of_date, t = get_spot_and_asof()
+    risk_free_rate, rate_source = get_risk_free_rate()
     df = fetch_chain(t, as_of_date)
-    metrics = compute_metrics(df, spot)
+    metrics = compute_metrics(df, spot, risk_free_rate)
 
     snapshot = {
         "generated_at_utc": datetime.utcnow().isoformat() + "Z",
         "as_of_date": as_of_date,
         "spot": spot,
         "strike_range": [STRIKE_LOW, STRIKE_HIGH],
+        "risk_free_rate": risk_free_rate,
+        "risk_free_rate_source": rate_source,
         "call_wall": metrics["call_wall"],
         "put_wall": metrics["put_wall"],
         "max_pain": metrics["max_pain"],
