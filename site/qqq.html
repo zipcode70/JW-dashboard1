@@ -3,22 +3,22 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>SPY Gamma Exposure Dashboard</title>
+<title>QQQ Gamma Exposure Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <script>
-  window.GEX_TICKER = 'SPY';
-  window.GEX_DATA_FILE = 'data/gex_data.json';
-  window.GEX_HISTORY_FILE = 'data/history.json';
+  window.GEX_TICKER = 'QQQ';
+  window.GEX_DATA_FILE = 'data/gex_data_QQQ.json';
+  window.GEX_HISTORY_FILE = 'data/history_QQQ.json';
 </script>
 <div class="wrap">
 
   <nav class="ticker-nav">
-    <a href="index.html" class="active">SPY</a>
-    <a href="qqq.html">QQQ</a>
+    <a href="index.html">SPY</a>
+    <a href="qqq.html" class="active">QQQ</a>
   </nav>
 
   <div class="header">
@@ -30,7 +30,7 @@
         <circle cx="15" cy="14" r="2.4" fill="#3b82f6"/>
       </svg>
       <div class="title-block">
-        <h1 id="pageHeading">SPY Gamma Exposure Dashboard</h1>
+        <h1 id="pageHeading">QQQ Gamma Exposure Dashboard</h1>
         <p>Dealer positioning across strikes <span id="strikeRangeLabel">700&ndash;850</span> &middot; <span id="asOfLabel">loading&hellip;</span></p>
       </div>
     </div>
@@ -42,7 +42,7 @@
 
   <div class="kpi-grid" id="kpiGrid">
     <div class="kpi-card" style="--bar-color:#22d3ee">
-      <div class="kpi-label" id="kpiSpotLabel">SPY Spot (Close)</div>
+      <div class="kpi-label" id="kpiSpotLabel">QQQ Spot (Close)</div>
       <div class="kpi-value" id="kpiSpot">&mdash;</div>
       <div class="kpi-sub" id="kpiSpotSub">&nbsp;</div>
     </div>

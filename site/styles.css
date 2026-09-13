@@ -33,6 +33,35 @@
 
 * { box-sizing: border-box; }
 
+.ticker-nav {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.ticker-nav a {
+  text-decoration: none;
+  color: var(--color-text-muted);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.ticker-nav a:hover {
+  color: var(--color-text);
+  border-color: var(--color-accent);
+}
+
+.ticker-nav a.active {
+  color: var(--color-bg);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
 html, body {
   margin: 0;
   padding: 0;

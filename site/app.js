@@ -117,7 +117,7 @@
     });
   }
 
-  function buildFlipChart(data) {
+  function buildFlipChart(data, tickerLabel) {
     const ctx = document.getElementById('flipChart');
     const spots = data.flip_curve.spot;
     const vals = data.flip_curve.total_gex;
@@ -146,7 +146,7 @@
         scales: {
           x: {
             type: 'linear', min: data.strike_range[0], max: data.strike_range[1],
-            title: { display: true, text: 'Hypothetical SPY Spot ($)', color: '#8b95a7', font: CHART_FONT },
+            title: { display: true, text: 'Hypothetical ' + tickerLabel + ' Spot ($)', color: '#8b95a7', font: CHART_FONT },
             grid: { color: 'rgba(35,43,56,0.6)' },
             ticks: { color: '#8b95a7', font: CHART_FONT, maxTicksLimit: 10 },
           },
@@ -231,7 +231,8 @@
     const box = document.getElementById('trackerChartBox');
     const ctx = document.getElementById('trackerChart');
     if (history.length < 2) {
-      box.innerHTML = '<div class="empty-hint">Tracking begins with the Sept 11 baseline. Additional trading days will appear here as they are recorded through the week.</div>';
+      const baseline = history.length === 1 ? fmtDateLabel(history[0].date) : 'the first recorded day';
+      box.innerHTML = '<div class="empty-hint">Tracking begins with the ' + baseline + ' baseline. Additional trading days will appear here as they are recorded.</div>';
       return null;
     }
     const labels = history.map((h) => fmtDateLabel(h.date));
@@ -283,6 +284,23 @@
   }
 
   function renderKPIs(data) {
+    const ticker = data.ticker || window.GEX_TICKER || 'Ticker';
+    document.title = ticker + ' Gamma Exposure Dashboard';
+    const heading = document.getElementById('pageHeading');
+    if (heading) heading.textContent = ticker + ' Gamma Exposure Dashboard';
+    const spotLabel = document.getElementById('kpiSpotLabel');
+    if (spotLabel) spotLabel.textContent = ticker + ' Spot (Close)';
+    const strikeRangeLabel = document.getElementById('strikeRangeLabel');
+    if (strikeRangeLabel) strikeRangeLabel.textContent = Math.round(data.strike_range[0]) + '\u2013' + Math.round(data.strike_range[1]);
+    const gexPanelDesc = document.getElementById('gexPanelDesc');
+    if (gexPanelDesc) gexPanelDesc.textContent = 'Net GEX per $1 strike, ' + Math.round(data.strike_range[0]) + '\u2013' + Math.round(data.strike_range[1]) + ', using ' + fmtDateLabel(data.as_of_date) + "'s closing open interest";
+    const oiPanelDesc = document.getElementById('oiPanelDesc');
+    if (oiPanelDesc) oiPanelDesc.textContent = 'By strike, ' + Math.round(data.strike_range[0]) + '\u2013' + Math.round(data.strike_range[1]);
+    const footnote = document.getElementById('footnoteText');
+    if (footnote) {
+      footnote.innerHTML = 'Methodology: dealer gamma exposure (GEX) per strike is estimated as Black&ndash;Scholes gamma &times; open interest &times; 100 &times; spot&sup2; &times; 0.01, with call open interest contributing positive exposure and put open interest contributing negative exposure (standard dealer-positioning convention). Implied volatility, open interest, and expirations are read from the live ' + ticker + ' options chain, reflecting ' + fmtDateLabel(data.as_of_date) + ' closing open interest. Max pain aggregates open interest across included near-term expirations to find the strike that minimizes total option payout at expiration. The gamma flip is the spot level where modeled total dealer gamma crosses from negative to positive. This is a modeled estimate for informational purposes, not a real-time dealer positioning feed, and should not be used as the sole basis for trading decisions.';
+    }
+
     document.getElementById('asOfLabel').textContent = 'as of ' + fmtDateLabel(data.as_of_date) + ' close';
     document.getElementById('updatedAt').textContent = 'Last refreshed: ' + new Date(data.generated_at_utc).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -303,14 +321,17 @@
   }
 
   async function init() {
+    const dataFile = window.GEX_DATA_FILE || 'data/gex_data.json';
+    const historyFile = window.GEX_HISTORY_FILE || 'data/history.json';
     try {
       const [data, history] = await Promise.all([
-        loadJSON('data/gex_data.json?_=' + Date.now()),
-        loadJSON('data/history.json?_=' + Date.now()).catch(() => []),
+        loadJSON(dataFile + '?_=' + Date.now()),
+        loadJSON(historyFile + '?_=' + Date.now()).catch(() => []),
       ]);
+      const ticker = data.ticker || window.GEX_TICKER || 'Ticker';
       renderKPIs(data);
       buildGexChart(data);
-      buildFlipChart(data);
+      buildFlipChart(data, ticker);
       buildOIChart(data);
       buildTrackerChart(history);
       renderTrackerTable(history);
