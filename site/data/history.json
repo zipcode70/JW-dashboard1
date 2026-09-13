@@ -5,8 +5,8 @@
     "call_wall": 775.0,
     "put_wall": 750.0,
     "max_pain": 760.0,
-    "gamma_flip": 769.4750320958482,
+    "gamma_flip": 769.4712473778818,
     "regime": "negative",
-    "total_net_gex": -4881308121.39125
+    "total_net_gex": -4877905258.04653
   }
 ]
