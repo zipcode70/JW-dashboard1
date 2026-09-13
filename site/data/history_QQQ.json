@@ -1,0 +1,13 @@
+[
+  {
+    "date": "2026-09-11",
+    "ticker": "QQQ",
+    "spot": 714.8800048828125,
+    "call_wall": 720.0,
+    "put_wall": 700.0,
+    "max_pain": 705.0,
+    "gamma_flip": 722.0714771181083,
+    "regime": "negative",
+    "total_net_gex": -2764028464.6267333
+  }
+]
