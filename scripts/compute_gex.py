@@ -210,3 +210,67 @@ def compute_metrics(df, spot, risk_free_rate, strike_low, strike_high):
         "regime": regime,
         "flip_curve": {"spot": hyp_spots.tolist(), "total_gex": flip_vals},
         "total_net_gex": net_gex_now,
+        "expirations_used": sorted(df["expiration"].unique().tolist()),
+    }
+
+
+def main():
+    ticker = TICKER
+    spot, as_of_date, t = get_spot_and_asof(ticker)
+    strike_low, strike_high = get_strike_range(ticker, spot)
+    risk_free_rate, rate_source = get_risk_free_rate()
+    df = fetch_chain(t, as_of_date, strike_low, strike_high)
+    metrics = compute_metrics(df, spot, risk_free_rate, strike_low, strike_high)
+
+    snapshot = {
+        "generated_at_utc": datetime.utcnow().isoformat() + "Z",
+        "ticker": ticker,
+        "as_of_date": as_of_date,
+        "spot": spot,
+        "strike_range": [strike_low, strike_high],
+        "risk_free_rate": risk_free_rate,
+        "risk_free_rate_source": rate_source,
+        "call_wall": metrics["call_wall"],
+        "put_wall": metrics["put_wall"],
+        "max_pain": metrics["max_pain"],
+        "gamma_flip": metrics["gamma_flip"],
+        "regime": metrics["regime"],
+        "total_net_gex": metrics["total_net_gex"],
+        "expirations_used": metrics["expirations_used"],
+        "by_strike": metrics["by_strike"].to_dict(orient="records"),
+        "flip_curve": metrics["flip_curve"],
+    }
+
+    with open(GEX_JSON_PATH, "w") as f:
+        json.dump(snapshot, f, indent=2)
+
+    # Append/update history
+    history = []
+    if os.path.exists(HISTORY_JSON_PATH):
+        with open(HISTORY_JSON_PATH) as f:
+            history = json.load(f)
+
+    entry = {
+        "date": as_of_date,
+        "ticker": ticker,
+        "spot": spot,
+        "call_wall": metrics["call_wall"],
+        "put_wall": metrics["put_wall"],
+        "max_pain": metrics["max_pain"],
+        "gamma_flip": metrics["gamma_flip"],
+        "regime": metrics["regime"],
+        "total_net_gex": metrics["total_net_gex"],
+    }
+    history = [h for h in history if h["date"] != as_of_date]
+    history.append(entry)
+    history.sort(key=lambda h: h["date"])
+
+    with open(HISTORY_JSON_PATH, "w") as f:
+        json.dump(history, f, indent=2)
+
+    print(json.dumps(entry, indent=2))
+    print(f"strike window used: {strike_low:.2f} - {strike_high:.2f}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()
