@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SPY Gamma Exposure Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Gamma dashboard logo">
+        <circle cx="20" cy="20" r="19" stroke="#22d3ee" stroke-width="1.5" opacity="0.35"/>
+        <path d="M8 26 L15 14 L20 22 L26 10 L32 18" stroke="#22d3ee" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="26" cy="10" r="2.4" fill="#fb7185"/>
+        <circle cx="15" cy="14" r="2.4" fill="#3b82f6"/>
+      </svg>
+      <div class="title-block">
+        <h1>SPY Gamma Exposure Dashboard</h1>
+        <p>Dealer positioning across strikes 700&ndash;850 &middot; <span id="asOfLabel">loading&hellip;</span></p>
+      </div>
+    </div>
+    <div class="header-meta">
+      <span id="regimeBadge" class="regime-badge"><span class="dot"></span><span id="regimeText">&mdash;</span></span>
+      <span id="updatedAt">Last refreshed: &mdash;</span>
+    </div>
+  </div>
+
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi-card" style="--bar-color:#22d3ee">
+      <div class="kpi-label">SPY Spot (Close)</div>
+      <div class="kpi-value" id="kpiSpot">&mdash;</div>
+      <div class="kpi-sub" id="kpiSpotSub">&nbsp;</div>
+    </div>
+    <div class="kpi-card" style="--bar-color:#3b82f6">
+      <div class="kpi-label">Call Wall</div>
+      <div class="kpi-value" id="kpiCallWall">&mdash;</div>
+      <div class="kpi-sub">Largest positive call gamma &middot; resistance</div>
+    </div>
+    <div class="kpi-card" style="--bar-color:#fb7185">
+      <div class="kpi-label">Put Wall</div>
+      <div class="kpi-value" id="kpiPutWall">&mdash;</div>
+      <div class="kpi-sub">Largest negative put gamma &middot; support</div>
+    </div>
+    <div class="kpi-card" style="--bar-color:#fbbf24">
+      <div class="kpi-label">Max Pain</div>
+      <div class="kpi-value" id="kpiMaxPain">&mdash;</div>
+      <div class="kpi-sub">Strike minimizing option payout at expiry</div>
+    </div>
+    <div class="kpi-card" style="--bar-color:#a78bfa">
+      <div class="kpi-label">Gamma Flip</div>
+      <div class="kpi-value" id="kpiFlip">&mdash;</div>
+      <div class="kpi-sub" id="kpiFlipSub">&nbsp;</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Dealer Gamma Exposure by Strike</h2>
+      <span class="desc">Net GEX per $1 strike, 700&ndash;850, using Friday's closing open interest</span>
+    </div>
+    <div class="legend-row">
+      <span class="legend-item"><span class="legend-swatch" style="background:#3b82f6"></span>Positive (call-dominated)</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#fb7185"></span>Negative (put-dominated)</span>
+      <span class="legend-item"><span class="legend-line" style="background:#3b82f6;border-top:2px dashed #3b82f6;height:0"></span>Call wall</span>
+      <span class="legend-item"><span class="legend-line" style="background:#fb7185;border-top:2px dashed #fb7185;height:0"></span>Put wall</span>
+      <span class="legend-item"><span class="legend-line" style="background:#fbbf24;border-top:2px dashed #fbbf24;height:0"></span>Max pain</span>
+      <span class="legend-item"><span class="legend-line" style="background:#a78bfa;border-top:2px dashed #a78bfa;height:0"></span>Gamma flip</span>
+      <span class="legend-item"><span class="legend-line" style="background:#e9edf3;border-top:2px solid #e9edf3;height:0"></span>Spot price</span>
+    </div>
+    <div class="chart-box"><canvas id="gexChart"></canvas></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Gamma Flip Curve</h2>
+        <span class="desc">Total dealer GEX vs. hypothetical spot</span>
+      </div>
+      <div class="chart-box short"><canvas id="flipChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Call vs. Put Open Interest</h2>
+        <span class="desc">By strike, 700&ndash;850</span>
+      </div>
+      <div class="chart-box short"><canvas id="oiChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Daily Wall Tracker</h2>
+      <span class="desc">How call wall, put wall, max pain &amp; gamma flip shift through the trading week</span>
+    </div>
+    <div class="chart-box short" id="trackerChartBox"><canvas id="trackerChart"></canvas></div>
+    <div style="margin-top: 1.5rem; overflow-x:auto;">
+      <table class="tracker" id="trackerTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Spot</th>
+            <th>Call Wall</th>
+            <th>Put Wall</th>
+            <th>Max Pain</th>
+            <th>Gamma Flip</th>
+            <th>Regime</th>
+          </tr>
+        </thead>
+        <tbody id="trackerBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footnote">
+    Methodology: dealer gamma exposure (GEX) per strike is estimated as Black&ndash;Scholes gamma &times; open interest &times; 100 &times; spot&sup2; &times; 0.01, with call open interest contributing positive exposure and put open interest contributing negative exposure (standard dealer-positioning convention). Implied volatility, open interest, and expirations are read from the live SPY options chain, which reflects Friday, September 11, 2026 closing open interest for this baseline snapshot. Max pain aggregates open interest across included near-term expirations to find the strike that minimizes total option payout at expiration. The gamma flip is the spot level where modeled total dealer gamma crosses from negative to positive. This is a modeled estimate for informational purposes, not a real-time dealer positioning feed, and should not be used as the sole basis for trading decisions.
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
