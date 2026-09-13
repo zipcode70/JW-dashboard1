@@ -62,10 +62,13 @@ Run with: `pip install -r requirements.txt && python3 scripts/compute_gex.py`
 3. **Expirations included:** every SPY expiration within 100 days of the as-of
    date (`fetch_chain(..., max_days_out=100)`).
 4. **Gamma model:** standard Black-Scholes gamma (`bs_gamma`), using each
-   contract's own `impliedVolatility` from the chain and a flat risk-free rate
-   proxy `RISK_FREE_RATE = 0.039` (hardcoded from the 13-week T-bill at the time
-   this was built — not fetched live, so it drifts stale over time; refreshing it
-   from `yf.Ticker("^IRX")` periodically would be a natural enhancement).
+   contract's own `impliedVolatility` from the chain and a risk-free rate fetched
+   live each run via `get_risk_free_rate()` (`yf.Ticker("^IRX")`, the 13-week
+   T-bill yield, converted from percentage points to a decimal). If that fetch
+   fails or returns an implausible value (sanity-checked to be between 0% and
+   20%), it falls back to the hardcoded `RISK_FREE_RATE_FALLBACK = 0.039`. The
+   snapshot JSON records which path was used each day via `risk_free_rate` and
+   `risk_free_rate_source` (`"live"` or `"fallback"`).
 5. **GEX formula per contract:**
    `gamma * openInterest * 100 (contract size) * spot^2 * 0.01`, sign
    **positive for calls, negative for puts** (this is the standard dealer-short
@@ -143,7 +146,10 @@ a new repo):
    If it becomes chronic, the fix is switching to a paid provider (Polygon.io,
    Tradier, CBOE DataShop) — would require rewriting `fetch_chain()` and
    `get_spot_and_asof()` in `compute_gex.py`, nothing else.
-3. **Risk-free rate is hardcoded**, not fetched live (see pipeline step 4 above).
+3. **Risk-free rate** is fetched live each run (see pipeline step 4 above), with
+   an automatic fallback to a hardcoded constant if the fetch fails — check
+   `gex_data.json`'s `risk_free_rate_source` field to see which path was used on
+   any given day.
 4. **Dealer positioning sign convention is an assumption**, not derived from any
    verified dealer-flow data — see pipeline step 5. This is standard practice in
    retail GEX tools but should be caveated if the user asks how "accurate" it is
@@ -158,7 +164,6 @@ a new repo):
 
 ## Natural next enhancements (if asked "what should we add")
 
-- Live risk-free rate fetch instead of hardcoded `0.039`
 - Configurable strike range / underlying ticker (currently SPY-only, hardcoded)
 - Second underlying support (QQQ, SPX) — would need a parametrized version of
   the whole pipeline rather than hardcoded `SPY`/`700`/`850`
