@@ -24,12 +24,12 @@
   {
     "date": "2026-09-15",
     "ticker": "SPY",
-    "spot": 758.1199951171875,
+    "spot": 757.3900146484375,
     "call_wall": 760.0,
     "put_wall": 760.0,
     "max_pain": 760.0,
-    "gamma_flip": 766.3335609397969,
+    "gamma_flip": 766.0892506736725,
     "regime": "negative",
-    "total_net_gex": -14321718608.469759
+    "total_net_gex": -15791636043.976326
   }
 ]

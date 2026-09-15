@@ -24,12 +24,12 @@
   {
     "date": "2026-09-15",
     "ticker": "QQQ",
-    "spot": 707.1199951171875,
+    "spot": 704.5399780273438,
     "call_wall": 710.0,
-    "put_wall": 700.0,
+    "put_wall": 705.0,
     "max_pain": 708.0,
-    "gamma_flip": 716.7388946101503,
+    "gamma_flip": 716.5446478335936,
     "regime": "negative",
-    "total_net_gex": -7710255092.642192
+    "total_net_gex": -13323747577.455181
   }
 ]
