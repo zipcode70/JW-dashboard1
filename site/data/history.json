@@ -196,5 +196,16 @@
     "gamma_flip": 770.2698604952345,
     "regime": "negative",
     "total_net_gex": -19010394626.83766
+  },
+  {
+    "date": "2026-10-19",
+    "ticker": "SPY",
+    "spot": 766.47998046875,
+    "call_wall": 767.0,
+    "put_wall": 767.0,
+    "max_pain": 767.0,
+    "gamma_flip": 768.5915703324315,
+    "regime": "negative",
+    "total_net_gex": -8067269450.931835
   }
 ]
