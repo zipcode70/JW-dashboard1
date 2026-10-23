@@ -240,5 +240,16 @@
     "gamma_flip": 727.3274635338418,
     "regime": "negative",
     "total_net_gex": -11788223370.682095
+  },
+  {
+    "date": "2026-10-23",
+    "ticker": "QQQ",
+    "spot": 704.4000244140625,
+    "call_wall": 705.0,
+    "put_wall": 705.0,
+    "max_pain": 720.0,
+    "gamma_flip": 724.4713812698916,
+    "regime": "negative",
+    "total_net_gex": -10290194371.594463
   }
 ]
