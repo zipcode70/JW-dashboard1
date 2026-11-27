@@ -355,11 +355,11 @@
     "date": "2026-11-25",
     "ticker": "SPY",
     "spot": 716.7000122070312,
-    "call_wall": 730.0,
+    "call_wall": 750.0,
     "put_wall": 700.0,
     "max_pain": 736.0,
-    "gamma_flip": 727.8108973525405,
+    "gamma_flip": 726.7648151222453,
     "regime": "negative",
-    "total_net_gex": -3341388388.2034845
+    "total_net_gex": -2577501443.194828
   }
 ]
